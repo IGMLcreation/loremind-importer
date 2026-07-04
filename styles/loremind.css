@@ -1,0 +1,10 @@
+/* LoreMind Importer — styles minimaux. */
+.loremind-import-btn {
+  flex: 0 0 auto;
+}
+
+.loremind-progress {
+  margin-top: 0.5rem;
+  font-style: italic;
+  opacity: 0.85;
+}
