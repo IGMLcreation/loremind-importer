@@ -1,121 +1,76 @@
-# LoreMind Importer (Foundry VTT v13)
+# LoreMind Importer
 
-Importe un **bundle de campagne LoreMind / DM Loremind** dans Foundry VTT : dossiers,
-**scènes** (battlemaps → fond + grille + murs + portes + lumières),
-**journaux** (narration joueur + notes MJ), **PNJ** et **ennemis** (en journaux).
+![Foundry v13](https://img.shields.io/badge/Foundry-v13-informational)
+[![Dernière release](https://img.shields.io/github/v/release/IGMLcreation/loremind-importer)](https://github.com/IGMLcreation/loremind-importer/releases/latest)
 
-Formats de sidecar de battlemap gérés : **export « Foundry VTT » de Dungeon Alchemist**
-(Scene à plat) et **Universal VTT** (.uvtt/.dd2vtt, Dungeondraft & co).
+> **English** — LoreMind Importer brings a campaign bundle exported from **DM Loremind** (a campaign-prep companion app) into Foundry VTT: folders, ready-to-play scenes (Universal VTT battlemaps with walls, doors and lights), journals (player narration + GM notes), roll tables, NPCs and enemies — including actor creation and token placement through a system-agnostic compendium bridge. The module UI is available in English and French. The documentation below is in French.
 
-> Module compagnon de LoreMind. Le `.zip` se génère côté LoreMind via
-> **Page d'une campagne → « Exporter pour Foundry »**.
+**LoreMind Importer** importe en un clic une campagne préparée dans **DM Loremind** vers Foundry VTT. Vous préparez votre campagne dans DM Loremind (narration, scènes, battlemaps, PNJ, ennemis, tables aléatoires) et le module recrée tout dans votre monde Foundry, prêt à jouer.
+
+## Ce que le module importe
+
+- **Dossiers** : l'arborescence de la campagne est recréée dans Foundry.
+- **Scènes** : chaque battlemap devient une scène complète — fond, grille, **murs, portes et lumières** — à partir des fichiers Universal VTT (`.uvtt` / `.dd2vtt`, Dungeondraft & co) ou de l'export « Foundry VTT » de **Dungeon Alchemist**.
+- **Journaux** : narration côté joueurs et notes MJ, chaque scène étant liée à son journal.
+- **Tables aléatoires** : les tables LoreMind deviennent des RollTables Foundry.
+- **PNJ et ennemis** : fiches en journaux (nom, portrait, champs), et pour les ennemis liés aux scènes, création d'**acteurs** et pose de **tokens** sur la battlemap (voir plus bas).
+
+L'import est **réimportable** : relancer l'import d'un bundle nettoie et recrée les éléments, en conservant les acteurs déjà importés et les stats saisies à la main.
+
+## Prérequis
+
+- **Foundry VTT v13**
+- L'application **DM Loremind** pour préparer la campagne et générer le bundle (`.zip`)
 
 ## Installation
 
-**Via URL de manifeste (recommandé)** — dans Foundry : *Add-on Modules → Install Module*,
-coller l'URL du manifeste :
+Dans Foundry : **Add-on Modules → Install Module**, puis coller l'URL de manifeste :
 
 ```
 https://github.com/IGMLcreation/loremind-importer/releases/latest/download/module.json
 ```
 
-**Manuel** — copier ce dossier dans `Data/modules/loremind-importer/`, puis activer le
-module dans le monde.
-
-> Remplace `IGMLcreation/loremind-importer` par ton dépôt GitHub réel (cf. `module.json`).
+Activez ensuite le module dans votre monde (**Game Settings → Manage Modules**).
 
 ## Utilisation
 
-1. Dans LoreMind : ouvre une campagne → **Exporter pour Foundry** → récupère le `.zip`.
-2. Dans Foundry (en **MJ**), deux options :
-   - **Bouton** « Importer LoreMind » dans l'onglet *Journaux* ;
-   - **Macro / console** (toujours fiable) :
-     ```js
-     game.modules.get("loremind-importer").api.import();
-     ```
-3. Sélectionne le `.zip`. Le module crée dossiers, journaux et scènes, et lie chaque
-   scène à son journal.
+1. Dans DM Loremind : page de la campagne → **« Exporter pour Foundry »** → récupérez le `.zip`.
+2. Dans Foundry, connecté en **MJ** : bouton **« Importer LoreMind »** en haut de l'onglet *Journaux* (ou via macro : `game.modules.get("loremind-importer").api.import();`).
+3. Sélectionnez le `.zip` : le module crée dossiers, scènes, journaux, tables et acteurs.
 
-## Monstres : Foundry → LoreMind → tokens
+## Pont monstres : Foundry ⇄ LoreMind
 
-Pont bidirectionnel basé sur la **référence** (UUID de compendium), pas la copie des
-stats → **compatible tous systèmes**.
+Le pont fonctionne par **référence** (UUID de compendium), pas par copie de stats — il est donc **compatible avec tous les systèmes de jeu**.
 
-1. **Foundry → LoreMind** : onglet *Acteurs* → bouton « Exporter monstres → LoreMind »
-   (ou `game.modules.get("loremind-importer").api.exportMonsters(["world", "nimble.monsters"])`).
-   Coche les sources : **Acteurs du monde** (coché par défaut) et/ou compendiums d'acteurs
-   → produit un `loremind-monsters-<system>.json` (`{ name, uuid, folder, stats, imgData }` par monstre).
-   L'**arborescence de dossiers** est conservée et recréée sous un dossier `Foundry/` côté LoreMind.
-   Le **portrait** de chaque acteur est embarqué en vignette (redimensionnée ≤ 512 px, webp/jpeg
-   base64) → importé comme illustration de la fiche (les `.svg` génériques sont ignorés).
-2. **LoreMind** : Bestiaire d'une campagne → « Importer des monstres Foundry » → choisis
-   le `.json`. Crée des ennemis (nom + référence), upsert par référence (pas de doublon).
-3. Lie ces ennemis à tes scènes dans LoreMind, exporte la campagne vers Foundry.
-4. **À l'import du bundle** : pour chaque ennemi lié qui a une référence, le module
-   ré-importe l'acteur du compendium dans le monde (une fois, réutilisé) et pose un
-   **token** sur la battlemap à une **position aléatoire** (tu ajustes).
+1. **Foundry → LoreMind** : onglet *Acteurs* → **« Exporter monstres → LoreMind »**. Cochez les sources (acteurs du monde et/ou compendiums) : le module produit un `loremind-monsters-<système>.json` avec, pour chaque monstre, son nom, sa référence, son dossier et son portrait en vignette.
+2. **Dans DM Loremind** : Bestiaire de la campagne → « Importer des monstres Foundry ». Les ennemis sont créés (ou mis à jour, sans doublon) avec leur arborescence de dossiers.
+3. Liez ces ennemis à vos scènes dans DM Loremind, puis exportez la campagne.
+4. **À l'import du bundle** : chaque ennemi référencé est ré-importé depuis son compendium (une seule fois, puis réutilisé) et un **token** est posé sur la battlemap.
 
-> Les stats restent natives Foundry. Le compendium source doit être installé dans le
-> monde cible. Les acteurs importés sont conservés (réutilisés) ; les tokens sont
-> nettoyés avec les scènes à la réimportation.
+> Le compendium source doit être installé dans le monde cible. Les stats restent 100 % natives Foundry.
 
-**Ennemis faits main (sans référence)** : un **acteur placeholder** nommé (type par
-défaut du système, + portrait si dispo) est créé et un token posé quand même. Les
-stats sont à remplir côté Foundry — et elles **persistent aux réimports** (l'acteur
-placeholder est conservé, mémoïsé par ennemi).
+**Ennemis créés dans LoreMind (sans référence)** : un acteur est créé quand même (avec portrait si disponible) et un token est posé. Les stats saisies ensuite dans Foundry **persistent aux réimports**.
 
-## Structure du système → ennemis maison typés
+## Ennemis maison avec vraies stats (mapping de structure)
 
-Pour que les ennemis **créés dans LoreMind** sortent en **vrais acteurs typés** (PV,
-armure, attributs — pas les capacités/sorts) :
+Pour que les ennemis créés dans DM Loremind sortent en **acteurs typés** avec leurs stats (PV, armure, attributs) :
 
-1. Dans Foundry, **sélectionne un token** (acteur exemple du système, ex. un monstre
-   Nimble) → onglet *Acteurs* → « Exporter structure → LoreMind » (ou
-   `api.exportSystemStructure()`, ou `api.exportSystemStructure("uuid")`). Produit un
-   `loremind-structure-<system>.json` (champs scalaires + chemins Foundry + type d'acteur).
-2. Dans LoreMind : édite le **Système de jeu** → « Importer une structure Foundry » →
-   choisis le `.json`. Le **template Ennemi** se remplit (champs mappés) + le type
-   d'acteur est posé. Élague/renomme les champs, enregistre.
-3. Crée tes monstres maison dans LoreMind en remplissant ces champs, lie-les aux scènes.
-4. À l'import du bundle : un ennemi maison **mappé** (sans référence compendium) est créé
-   comme **acteur du bon type** avec `system.<chemin> = valeur` → stats correctes. Sans
-   mapping → placeholder vide. Les **capacités/sorts** restent à ajouter dans Foundry.
+1. Dans Foundry, sélectionnez un token exemple → onglet *Acteurs* → **« Exporter structure → LoreMind »** : produit un `loremind-structure-<système>.json`.
+2. Dans DM Loremind : édition du **Système de jeu** → « Importer une structure Foundry ». Le template Ennemi se remplit avec les champs mappés ; élaguez/renommez, enregistrez.
+3. Créez vos monstres dans DM Loremind en remplissant ces champs et liez-les aux scènes.
+4. À l'import, chaque ennemi mappé est créé comme **acteur du bon type** avec ses stats. Les capacités et sorts restent à ajouter côté Foundry.
 
-## Distribution (GitHub)
+## Limites connues
 
-Le module se diffuse via **GitHub Releases** (URLs `latest/download/...` dans `module.json`) :
+- Les PNJ et ennemis non liés à une scène restent des **journaux** (pas de fiche d'acteur).
+- L'échelle des **lumières** UVTT est une heuristique (grille à 5 unités par case) : à ajuster selon votre système.
+- La **grille** est carrée, `distance = 5 ft` par défaut.
+- Une scène sans fichier UVTT (image seule) est importée à plat, sans murs ni lumières.
 
-1. Dépôt GitHub `loremind-importer` (public).
-2. Pour chaque version : créer une **Release** taggée (`v0.1.0`, …) avec **deux assets** :
-   - `module.json` (ce fichier, avec la bonne `version`) ;
-   - `module.zip` (zip du contenu du module : `module.json`, `scripts/`, `styles/`,
-     `lang/`).
-3. Les URLs `releases/latest/download/module.json` et `.../module.zip` se résolvent
-   automatiquement → mise à jour in-app gérée par Foundry.
+## Support
 
-Un workflow GitHub Actions peut packager + publier la release à chaque tag (à ajouter).
+Un problème, une idée ? Ouvrez un ticket sur [GitHub Issues](https://github.com/IGMLcreation/loremind-importer/issues).
 
-## Périmètre v1 / limites (à itérer en jeu)
+---
 
-- **Acteurs** : les PNJ/ennemis partent en **journaux** (nom + portrait + champs résolus),
-  pas en fiches d'acteur jouables (mapping système-dépendant → version ultérieure).
-- **Lumières UVTT** : l'échelle (range cases → portée Foundry) est une **heuristique**
-  (`distance` de grille = 5) à ajuster selon ton système.
-- **Grille** : carrée, `distance = 5 ft` par défaut.
-- **Scène sans sidecar UVTT** (média seul) : scène plate (fond + grille par défaut),
-  sans murs/lumières.
-- Non testé en CI (dépend de l'API Foundry) : **valider et ajuster dans Foundry v13**.
-
-## Structure
-
-```
-loremind-importer/
-├── module.json
-├── scripts/
-│   ├── main.js       # entrée : API + bouton sidebar + dialog fichier
-│   ├── bundle.js     # lecture du .zip (sans dépendance)
-│   ├── uvtt.js       # Universal VTT → données de Scene
-│   └── importer.js   # orchestration (assets, dossiers, scènes, journaux)
-├── styles/loremind.css
-└── lang/{fr,en}.json
-```
+Module compagnon de **DM Loremind**, © IGML Creation.
