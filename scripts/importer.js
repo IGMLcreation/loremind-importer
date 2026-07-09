@@ -62,12 +62,30 @@ function filePicker() {
   return foundry?.applications?.apps?.FilePicker ?? globalThis.FilePicker;
 }
 
-/** Upload tous les assets dans le dossier data du monde, retourne assetId -> src. */
+/**
+ * Ids des sidecars de battlemaps (JSON DA / .uvtt / .dd2vtt) : repérés par leur
+ * `kind`, avec repli sur les références `dataAssetId` des scènes (bundles antérieurs
+ * au champ kind). Ils sont lus directement dans le zip (cf. readSidecar) et ne
+ * doivent PAS être uploadés : Foundry refuse ces extensions ("disallowed extension").
+ */
+function sidecarAssetIds(data) {
+  const ids = new Set();
+  for (const a of data.assets ?? []) if (a.kind === "battlemapData") ids.add(a.id);
+  for (const s of data.scenes ?? []) {
+    if (s.battlemap?.dataAssetId) ids.add(s.battlemap.dataAssetId);
+    for (const bm of s.battlemaps ?? []) if (bm?.dataAssetId) ids.add(bm.dataAssetId);
+  }
+  return ids;
+}
+
+/** Upload les assets média dans le dossier data du monde, retourne assetId -> src. */
 async function uploadAssets(bundle, targetDir) {
   const FP = filePicker();
   await ensureDir(targetDir);
+  const skip = sidecarAssetIds(bundle.data);
   const out = {};
   for (const asset of bundle.data.assets ?? []) {
+    if (skip.has(asset.id)) continue;
     const bytes = await bundle.bytes(asset.path);
     if (!bytes) continue;
     const filename = `${asset.id}${extOf(asset.path)}`;
@@ -372,6 +390,8 @@ export async function importBundle(bundle, onProgress = () => {}) {
         try {
           const created = await mkScene("scene:" + scene.id + (bm.label ? ":" + bm.label : ""), sceneData);
           scenes++;
+          // Vignette de la sidebar (les scènes créées par l'API n'en ont pas toujours).
+          await ensureThumbnail(created, label);
           // Lien retour : page "Carte" dans le journal de la scène pour ouvrir la Scene.
           await addSceneLinkPage(sceneJournalId[scene.id], created, label,
             bm.label ? `Carte — ${bm.label}` : "Carte");
@@ -385,6 +405,21 @@ export async function importBundle(bundle, onProgress = () => {}) {
   }
 
   return { scenes, journals, tables, actors: 0 };
+}
+
+/**
+ * Génère la vignette de la sidebar si Foundry ne l'a pas fait : les scènes créées
+ * par l'API peuvent en manquer (observé quand la création lève des avertissements
+ * de validation). Best-effort : un échec (ex. fond vidéo) est juste loggué.
+ */
+async function ensureThumbnail(sceneDoc, label) {
+  if (!sceneDoc || sceneDoc.thumb || !sceneDoc.background?.src) return;
+  try {
+    const t = await sceneDoc.createThumbnail();
+    if (t?.thumb) await sceneDoc.update({ thumb: t.thumb }, { render: false });
+  } catch (e) {
+    console.warn(`${MODULE_ID} | vignette non générée pour "${label}"`, e);
+  }
 }
 
 /** Ajoute au journal d'une scène une page "Carte" avec un lien cliquable vers la Scene. */

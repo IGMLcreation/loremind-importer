@@ -34,11 +34,22 @@ export function buildSceneData(sidecar, backgroundSrc, name) {
 // Format "Foundry VTT" de Dungeon Alchemist (Scene à plat, ancien schéma)
 // ---------------------------------------------------------------------------
 
-/** 0/1 (ancien) ou enum (récent) -> enum v13 (NONE / NORMAL). */
+/**
+ * Sens (sight/light/sound) : l'ancien schéma v9 va de 0 à 2 (NONE/LIMITED/NORMAL),
+ * la v13 attend 0/10/20/30/40 -> les valeurs 0-2 sont multipliées par 10 (0/10/20),
+ * les valeurs déjà en enum v10+ passent telles quelles. DA exporte bien les deux
+ * niveaux (1 = terrain/chariots, 2 = murs pleins) : un 2 non converti fait rejeter
+ * le mur par la validation Foundry ("light: 2 is not a valid choice").
+ */
 function senseLevel(v) {
-  if (v === 0) return SENSE_NONE;
-  if (v === 1) return SENSE_NORMAL;
-  return typeof v === "number" ? v : SENSE_NORMAL;
+  if (typeof v !== "number") return SENSE_NORMAL;
+  return v <= 2 ? v * 10 : v;
+}
+
+/** Mouvement : échelle v9 = 0/1, v13 = 0/20 (pas de niveau LIMITED en déplacement). */
+function moveLevel(v) {
+  if (typeof v !== "number") return SENSE_NORMAL;
+  return v === 0 ? SENSE_NONE : SENSE_NORMAL;
 }
 
 function daSceneToSceneData(da, src, name) {
@@ -46,7 +57,7 @@ function daSceneToSceneData(da, src, name) {
 
   const walls = (da.walls ?? []).map(w => ({
     c: w.c,
-    move: senseLevel(w.move),
+    move: moveLevel(w.move),
     sight: senseLevel(w.sense ?? w.sight),
     light: senseLevel(w.light ?? w.sense ?? w.sight),
     sound: senseLevel(w.sound),
@@ -92,10 +103,16 @@ function daSceneToSceneData(da, src, name) {
 // Universal VTT (.uvtt / .dd2vtt) — coordonnées en unités de grille
 // ---------------------------------------------------------------------------
 
+/**
+ * Couleur UVTT -> "#rrggbb". DungeonDraft exporte en AARRGGBB (alpha DEVANT :
+ * "ffeccd8b" = torche sable) -> on garde les 6 DERNIERS caractères ; en prenant
+ * les 6 premiers, toutes les lumières deviennent quasi blanches et saturent.
+ */
 function normalizeColor(c) {
   if (!c || typeof c !== "string") return undefined;
-  const h = c.replace("#", "").trim();
-  return h.length >= 6 ? "#" + h.substring(0, 6).toLowerCase() : undefined;
+  const h = c.replace("#", "").trim().toLowerCase();
+  if (h.length >= 8) return "#" + h.slice(-6);
+  return h.length === 6 ? "#" + h : undefined;
 }
 
 function uvttToSceneData(uvtt, src, name) {
@@ -131,11 +148,17 @@ function uvttToSceneData(uvtt, src, name) {
     }
   });
 
+  // baked_lighting : la lueur est déjà peinte dans l'image exportée -> la lumière
+  // Foundry ne sert qu'à la visibilité des tokens, sa teinte doit rester discrète
+  // (l'alpha par défaut de 0.5 s'additionne entre lumières et éblouit la scène).
+  const baked = uvtt.environment?.baked_lighting === true;
   const lights = (uvtt.lights ?? []).map((l) => {
     const [x, y] = toPx(l.position ?? { x: 0, y: 0 });
     const dim = (l.range || 0) * DEFAULT_DISTANCE;
     const color = normalizeColor(l.color);
-    return { x, y, config: { dim, bright: dim / 2, ...(color ? { color } : {}) } };
+    const intensity = typeof l.intensity === "number" && l.intensity > 0 ? l.intensity : 1;
+    const alpha = Math.min(0.5, (baked ? 0.1 : 0.25) * intensity);
+    return { x, y, config: { dim, bright: dim / 2, ...(color ? { color, alpha } : {}) } };
   });
 
   return {

@@ -9,10 +9,14 @@ pointe sur `releases/latest/download/module.json` (mises à jour in-app), le cha
 1. Dans `module.json` : bumper `version` **et** `download`
    (`.../releases/download/vX.Y.Z/module.zip`).
 2. Commit + push (`main`).
-3. Construire le zip (contenu à la racine, sans `.git`) :
+3. Construire le zip (contenu à la racine, sans `.git`), dans un terminal
+   **PowerShell** ouvert dans ce dossier :
    ```powershell
-   Compress-Archive -Path .\module.json, .\scripts, .\styles, .\lang, .\README.md -DestinationPath .\module.zip -Force
+   tar.exe -a -cf module.zip module.json scripts styles lang README.md LICENSE
    ```
+   > Pas `Compress-Archive` : il écrit des antislashs dans le zip (non conforme,
+   > casse l'extraction sur les serveurs Foundry Linux). `tar` (inclus dans
+   > Windows 11) produit un zip correct.
 4. Créer la release GitHub taggée `vX.Y.Z` avec **deux assets** : `module.json` + `module.zip`.
    ```powershell
    gh release create vX.Y.Z .\module.zip .\module.json --title "vX.Y.Z" --notes "..."

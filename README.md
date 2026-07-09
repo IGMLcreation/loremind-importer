@@ -71,6 +71,11 @@ Pour que les ennemis créés dans DM Loremind sortent en **acteurs typés** avec
 
 Un problème, une idée ? Ouvrez un ticket sur [GitHub Issues](https://github.com/IGMLcreation/loremind-importer/issues).
 
+## Licence
+
+Module propriétaire, © IGML Creation — utilisation libre et gratuite avec
+Foundry VTT, redistribution et revente interdites. Voir [LICENSE](LICENSE).
+
 ---
 
 Module compagnon de **DM Loremind**, © IGML Creation.
