@@ -371,6 +371,10 @@ export async function importBundle(bundle, onProgress = () => {}) {
 
   if (wantMaps) {
     onProgress(game.i18n.localize("LOREMIND.creatingScenes"));
+    // Ennemis dont la réf Foundry est morte (repli placeholder) / sans acteur du tout :
+    // agrégés sur tout l'import pour UNE notification lisible à la fin.
+    const deadRefNames = new Set();
+    const skippedNames = new Set();
     for (const scene of data.scenes ?? []) {
       // Variantes multiples (Jour/Nuit, étages…) : une Scene Foundry PAR carte.
       // Repli sur l'ancien champ `battlemap` (bundle antérieur, carte unique).
@@ -396,11 +400,19 @@ export async function importBundle(bundle, onProgress = () => {}) {
           await addSceneLinkPage(sceneJournalId[scene.id], created, label,
             bm.label ? `Carte — ${bm.label}` : "Carte");
           // Tokens : ennemis liés (acteur de compendium si réf, sinon placeholder nommé).
-          await placeEnemyTokens(created, scene.enemyIds, enemyById, worldActorCache, src);
+          const placed = await placeEnemyTokens(created, scene.enemyIds, enemyById, worldActorCache, src);
+          placed.deadRefs.forEach(n => deadRefNames.add(n));
+          placed.skipped.forEach(n => skippedNames.add(n));
         } catch (e) {
           console.error(`${MODULE_ID} | échec création scène "${label}"`, e, sceneData);
         }
       }
+    }
+    if (deadRefNames.size) {
+      ui.notifications.warn(game.i18n.format("LOREMIND.deadRefFallback", { names: [...deadRefNames].join(", ") }));
+    }
+    if (skippedNames.size) {
+      ui.notifications.warn(game.i18n.format("LOREMIND.actorsSkipped", { names: [...skippedNames].join(", ") }));
     }
   }
 
@@ -441,11 +453,16 @@ async function addSceneLinkPage(journalId, createdScene, sceneName, pageName = "
 }
 
 /**
- * Pose sur une scène les tokens des ennemis liés qui référencent un acteur Foundry
- * (compendium). Position ALÉATOIRE (snappée à la grille) — le MJ ajuste.
+ * Pose sur une scène les tokens des ennemis liés. Référence Foundry résoluble ->
+ * acteur du compendium (stats natives). Référence MORTE (acteur créé dans un AUTRE
+ * monde, ou compendium absent ici) ou pas de référence -> repli sur l'acteur
+ * placeholder nommé, à compléter côté Foundry (il persiste entre imports).
+ * Position ALÉATOIRE (snappée à la grille) — le MJ ajuste.
+ * Retourne les noms concernés : { deadRefs (repli placeholder), skipped (aucun acteur) }.
  */
 async function placeEnemyTokens(sceneDoc, enemyIds, enemyById, actorCache, src) {
-  if (!sceneDoc || !enemyIds?.length) return;
+  const report = { deadRefs: [], skipped: [] };
+  if (!sceneDoc || !enemyIds?.length) return report;
   const grid = sceneDoc.grid?.size || 100;
   const width = sceneDoc.width || grid * 10;
   const height = sceneDoc.height || grid * 10;
@@ -454,12 +471,10 @@ async function placeEnemyTokens(sceneDoc, enemyIds, enemyById, actorCache, src) 
   for (const eid of enemyIds) {
     const enemy = enemyById.get(eid);
     if (!enemy) continue;
-    // Avec référence -> acteur du compendium (stats natives) ;
-    // sans référence -> acteur placeholder nommé (stats à remplir côté Foundry).
-    const actor = enemy.foundryRef
-      ? await ensureWorldActor(enemy.foundryRef, actorCache)
-      : await ensurePlaceholderActor(enemy, src, actorCache);
-    if (!actor) continue;
+    let actor = enemy.foundryRef ? await ensureWorldActor(enemy.foundryRef, actorCache) : null;
+    if (enemy.foundryRef && !actor) report.deadRefs.push(enemy.name);
+    if (!actor) actor = await ensurePlaceholderActor(enemy, src, actorCache);
+    if (!actor) { report.skipped.push(enemy.name); continue; }
     try {
       const td = await actor.getTokenDocument({ x: randCell(width, grid), y: randCell(height, grid) });
       tokens.push(td.toObject());
@@ -471,6 +486,7 @@ async function placeEnemyTokens(sceneDoc, enemyIds, enemyById, actorCache, src) 
     try { await sceneDoc.createEmbeddedDocuments("Token", tokens); }
     catch (e) { console.warn(`${MODULE_ID} | placement des tokens échoué`, e); }
   }
+  return report;
 }
 
 /**
@@ -519,8 +535,12 @@ async function ensurePlaceholderActor(enemy, src, cache) {
 
   // Si l'ennemi maison est mappé (template calqué sur le système Foundry), on crée
   // un acteur TYPÉ avec ses stats ; sinon un placeholder vide du type par défaut.
+  // Le type mappé n'est retenu que s'il existe dans CE monde : une structure
+  // exportée depuis un autre système ne doit pas faire échouer la création.
+  const worldTypes = (game.documentTypes?.Actor ?? []).filter(t => t !== "base");
   const fa = enemy.foundryActor; // { type, system } ou absent
-  const type = (fa && fa.type) || defaultActorType();
+  const typedOk = !!(fa?.type && worldTypes.includes(fa.type));
+  const type = typedOk ? fa.type : defaultActorType();
   if (!type) {
     console.warn(`${MODULE_ID} | aucun type d'acteur pour "${enemy.name}"`);
     cache.set(key, null);
@@ -532,13 +552,21 @@ async function ensurePlaceholderActor(enemy, src, cache) {
     type,
     flags: { [MODULE_ID]: { placeholderEnemyId: enemy.id } }
   };
-  if (fa && fa.system) data.system = fa.system;
+  if (typedOk && fa.system) data.system = fa.system;
   const img = enemy.portraitAssetId && src ? src[enemy.portraitAssetId] : null;
   if (img) data.img = img;
 
   let actor = null;
   try { actor = await Actor.create(data); }
-  catch (e) { console.warn(`${MODULE_ID} | acteur placeholder échoué : "${enemy.name}"`, e); }
+  catch (e) {
+    console.warn(`${MODULE_ID} | acteur placeholder échoué : "${enemy.name}"`, e);
+    // Stats mappées refusées par le système -> on retente en fiche vierge.
+    if (data.system) {
+      delete data.system;
+      try { actor = await Actor.create(data); }
+      catch (e2) { console.warn(`${MODULE_ID} | fiche vierge échouée aussi : "${enemy.name}"`, e2); }
+    }
+  }
   cache.set(key, actor);
   return actor;
 }

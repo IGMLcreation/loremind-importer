@@ -15,7 +15,7 @@ const MODULE_ID = "loremind-importer";
 // Marqueur de build : si tu ne vois PAS ce log dans la console (F12) au lancement
 // du monde, c'est que Foundry sert encore l'ancien JS -> recharge (Ctrl+F5) ou
 // relance le monde.
-const BUILD = "0.2.7 (sélecteur : div scrollable au lieu d'un form imbriqué)";
+const BUILD = "0.2.9 (placeholder sur réf Foundry morte + notifications, type mappé validé)";
 
 Hooks.once("init", () => {
   console.log(`${MODULE_ID} | init — build ${BUILD}`);

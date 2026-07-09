@@ -28,5 +28,7 @@
   "LOREMIND.pickFallback": "Sélecteur indisponible — vois la console pour les ids, puis api.exportMonsters([...]).",
   "LOREMIND.structureExportButton": "Exporter structure → LoreMind",
   "LOREMIND.noSampleActor": "Sélectionne un token (acteur exemple) sur la scène, ou passe un UUID à api.exportSystemStructure(uuid).",
-  "LOREMIND.structureExported": "Structure exportée ({count} champ(s)). Importe le .json dans LoreMind (Système de jeu)."
+  "LOREMIND.structureExported": "Structure exportée ({count} champ(s)). Importe le .json dans LoreMind (Système de jeu).",
+  "LOREMIND.deadRefFallback": "Référence Foundry introuvable pour : {names} (acteur d'un autre monde ou compendium absent). Fiche(s) vierge(s) créée(s) à la place — complète les stats dans Foundry, elles survivront aux réimports.",
+  "LOREMIND.actorsSkipped": "Aucun acteur créé pour : {names} (détails en console F12)."
 }
